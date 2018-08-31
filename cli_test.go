@@ -70,6 +70,15 @@ func TestRun_pathFlag(t *testing.T) {
 	_ = status
 }
 
+func TestRun_serverSideEncryptionFlag(t *testing.T) {
+	outStream, errStream := new(bytes.Buffer), new(bytes.Buffer)
+	cli := &CLI{outStream: outStream, errStream: errStream}
+	args := strings.Split("./gothree -server-side-encryption", " ")
+
+	status := cli.Run(args)
+	_ = status
+}
+
 func Test_saveName(t *testing.T) {
 	n := time.Now().Local()
 	os.Setenv("GOTHREE_PREFIX", "example")
@@ -131,7 +140,7 @@ func Test_lotateFileName(t *testing.T) {
 		args args
 		want string
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

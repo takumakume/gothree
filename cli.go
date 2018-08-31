@@ -41,6 +41,7 @@ func (cli *CLI) Run(args []string) int {
 		region string
 		bucket string
 		path   string
+		sse    string
 
 		version bool
 	)
@@ -54,6 +55,7 @@ func (cli *CLI) Run(args []string) int {
 	flags.StringVar(&region, "region", "ap-northeast-1", "Please specify region of aws")
 	flags.StringVar(&bucket, "bucket", "", "Please specify bucket of aws s3")
 	flags.StringVar(&path, "path", "/", "Please specify path of aws s3")
+	flags.StringVar(&sse, "server-side-encryption", "", "The Server-side encryption algorithm used when storing this object in aws s3 (e.g., AES256, aws:kms)")
 	flags.BoolVar(&version, "version", false, "Print version information and quit.")
 
 	// Parse commandline flag
@@ -67,7 +69,7 @@ func (cli *CLI) Run(args []string) int {
 		return ExitCodeOK
 	}
 
-	s, err := newSthree(awsID, awsKey, region, bucket, path)
+	s, err := newSthree(awsID, awsKey, region, bucket, path, sse)
 
 	if err != nil {
 		logrus.Fatal(err)
@@ -83,11 +85,12 @@ func (cli *CLI) Run(args []string) int {
 }
 
 type sthree struct {
-	SecretAccessKey string `validate:"required"`
-	AccessKeyID     string `validate:"required"`
-	Region          string `validate:"required"`
-	Bucket          string `validate:"required"`
-	Path            string `validate:"required"`
+	SecretAccessKey      string `validate:"required"`
+	AccessKeyID          string `validate:"required"`
+	Region               string `validate:"required"`
+	Bucket               string `validate:"required"`
+	Path                 string `validate:"required"`
+	ServerSideEncryption string `validate:"-"`
 }
 
 func assignEnv(v *string, key string) {
@@ -96,18 +99,19 @@ func assignEnv(v *string, key string) {
 	}
 }
 
-func newSthree(id, key, region, bucket, path string) (*sthree, error) {
+func newSthree(id, key, region, bucket, path, sse string) (*sthree, error) {
 	assignEnv(&id, "AWS_ACCESS_KEY_ID")
 	assignEnv(&key, "AWS_SECRET_ACCESS_KEY")
 	assignEnv(&region, "AWS_REGION")
 	assignEnv(&bucket, "AWS_BUCKET")
 
 	s := &sthree{
-		AccessKeyID:     id,
-		SecretAccessKey: key,
-		Region:          region,
-		Bucket:          bucket,
-		Path:            path,
+		AccessKeyID:          id,
+		SecretAccessKey:      key,
+		Region:               region,
+		Bucket:               bucket,
+		Path:                 path,
+		ServerSideEncryption: sse,
 	}
 	config := &validator.Config{TagName: "validate"}
 	validate := validator.New(config)
@@ -196,11 +200,15 @@ func (s *sthree) Put(filePath string) error {
 
 	uploader := s3manager.NewUploader(st)
 	logrus.Infof("start upload file:%s save: %s", filePath, saveName(filePath))
-	result, err := uploader.Upload(&s3manager.UploadInput{
+	input := &s3manager.UploadInput{
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(filepath.Join(s.Path, saveName(filePath))),
 		Body:   reader,
-	})
+	}
+	if s.ServerSideEncryption != "" {
+		input.ServerSideEncryption = aws.String(s.ServerSideEncryption)
+	}
+	result, err := uploader.Upload(input)
 
 	if err != nil {
 		return err
